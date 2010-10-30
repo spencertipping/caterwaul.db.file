@@ -1,0 +1,16 @@
+#!/bin/bash
+sdoc -p
+
+if [[ $1 == 'update' ]]; then
+  rm -f lib/*.js
+  wget http://spencertipping.com/caterwaul/caterwaul.min.js -O lib/caterwaul.min.js
+  wget http://spencertipping.com/caterwaul/modules/caterwaul.opt.min.js -O lib/caterwaul.opt.min.js
+  wget http://spencertipping.com/caterwaul/modules/caterwaul.error.min.js -O lib/caterwaul.error.min.js
+fi
+
+if [[ $1 == 'run' ]]; then
+  mkfifo combined.js
+  cat lib/caterwaul.min.js lib/caterwaul.opt.min.js lib/caterwaul.error.min.js caterwaul.db.file.js > combined.js &
+  node combined.js
+  rm combined.js
+fi
