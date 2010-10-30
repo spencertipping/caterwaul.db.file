@@ -1,0 +1,64 @@
+Indexed flat-file database | Spencer Tipping
+Licensed under the terms of the MIT source code license
+
+Introduction.
+This is a simple database designed for prototyping and perhaps small-scale production use. The goals are to be (1) indestructible (i.e. you can't lose data), (2) easily managed, (3) instant to
+setup, and (4) reasonably quick (in case you do need to use it for real applications). It doesn't provide any sort of transactions, record locking, etc -- it's just a key-value store that is
+easily inspected and backed up with rsync.
+
+All records are stored as plain-text with minimal formatting changes. This means that you can write an adapter to the database in just a few lines of code in most dynamic languages. It also
+enables very easy recovery in case something goes wrong.
+
+caterwaul.tconfiguration('std opt error', 'db.file', function () {
+
+Object model.
+Every object is append-only. An object's lifecycle comes in three steps. First, it is created (this is done when someone creates a reference to it), then it is modified any number of times,
+and finally it is marked as being deleted (though it will never really be deleted). Objects are always stored in delta format, one record per line. Each record signifies an edit of some sort,
+and loading an object is done by replaying the edit log (this is done on the client to reduce server load, though it should be a trivial enough operation even on the server).
+
+Each update marks a simple value of a field. There is no native support for arrays or objects; because these have identity, it would be difficult to manage them. The recommended way to get
+support for these things is to create new first-class objects on the server and then refer to them directly, e.g. {foo: '_some_object_id_'}.
+
+  Field updates.
+  Field updates are all done individually and are optimistically indexed. Later on when searches are performed the relevance-sorting stage culls entries that are no longer relevant. This
+  enatils space usage of O(n) for n edits, and not substantially worse than storing the objects without indexes. Indexes are also append-only. So, for example, here is the content of an object
+  file:
+
+  | username@time:field=value (assignment)
+    username@time#            (deletion)
+
+  The file name is something like /objects/195_/_gensym_foo_bar195_, and the filename is the object ID.
+
+  Indexes.
+  Indexes are constructed by tagging particular words. For example, a field edit of 'title' to 'foo bar bif' would append the field and object ID (title:_gensym_foo_bar195_) to each of the
+  files /indexes/foo, /indexes/bar, and /indexes/bif. This is also done on the client-side, but the server provides an interface:
+
+  | POST /indexes/field:_object_id_
+    foo
+    bar
+    bif
+
+  Each search term is newline-separated, and the API is deliberately asymmetrical. Indexes are a reverse lookup, so creation is different from access.
+
+Creating a database.
+You can create a database in a directory by saying this (the directory doesn't have to exist ahead of time):
+
+| var db = caterwaul.db.file('directory-name');
+
+You can then use various methods on that database. All DB calls are asynchronous.
+
+  this.configure('node.require');
+
+  var require        = this.require;
+  var root_directory = './db';
+
+  let[fs = require('fs')] in
+  ['#{root_directory}/objects', '#{root_directory}/indexes', '#{root_directory}/log'].forEach(fn[dirname][error.quietly[fs.statSync(dirname)] || fs.mkdirSync(dirname, 0744)]);
+
+  this.field('object_write', fn[id, data][ensure_directory_for(id,
+                                          fn_[let[ws = fs.createWriteStream('#{root_directory}/objects/#{id.substring(id.length - 3)}/#{id}', {flags: 'a+', encoding: 'utf8'})] in
+                                              (ws.write('#{data.replace(/\n$/, "")}\n'), ws.end())]),
+                                          where[ensure_directory_for = fn[id, cc][fs.stat('#{root_directory}/objects/#{id.substring(id.length - 3)}', fn[err, stat][
+                                                                                  err ? fs.mkdir('#{root_directory}/objects/#{id.substring(id.length - 3)}', 0744, cc) : cc()])]],
+                                          where[fs = require('fs')]]);
+});
