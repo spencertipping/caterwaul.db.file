@@ -83,8 +83,8 @@ caterwaul.tconfiguration('std opt error', 'db.file', function () {
 // change or set of changes and still have a valid object definition. (This isn't true of a textual diff, for instance, since text diffs don't have well-defined slots.)
 
   var fs = this.node_require('fs'), path = this.node_require('path'), db = this.db || this.shallow('db', {}).db,
-      file = db.file = fn[dir, options][mkdir_p_sync(dir, options && options.mode || 0744) && file.shell(dir, options)],
-      mkdir_p_sync = fn[dir, mode][error.safely[fs.stat(dir)][null] || mkdir_p_sync(path.dirname(dir), mode) && fs.mkdirSync(dir, mode)];
+      file = db.file = fn[dir, options][mkdir_p_sync(dir, options && options.mode || 0744), file.shell(dir, options)],
+      mkdir_p_sync = fn[dir, mode][error.quietly[fs.statSync(dir)] || (mkdir_p_sync(path.dirname(dir), mode), fs.mkdirSync(dir, mode))];
 
 // External interface.
 // First we need to make sure that the objects, indexes, and log directories exist. Those can be created synchronously, since one doesn't generally initialize databases midway through an
@@ -99,9 +99,10 @@ caterwaul.tconfiguration('std opt error', 'db.file', function () {
     mkdir_p_sync('#{dir}/indexes', options.mode);
 
     var result = caterwaul.util.merge(
-      caterwaul.util.extend(fn[x][this instanceof result ? (this.id = x) :
-                                  x === undefined     ? result.create()  : x instanceof String ? result.get(x) :
-                                  x instanceof Object ? result.create(x) : x instanceof Array  ? result.create(x) : error.fail[new Error('Invalid parameter to caterwaul.db.file: #{x}')]],
+      caterwaul.util.extend(fn[x][this.constructor === result ? (this.id = x) :
+                                  x === undefined          ? result.create()  : x.constructor === String ? result.get(x) :
+                                  x.constructor === Object ? result.create(x) : x.constructor === Array  ? result.create(x) :
+                                  error.fail[new Error('Invalid parameter to caterwaul.db.file: #{x}')]],
 
 //   Instance methods of objects.
 //   We can easily construct objects given the ID and a reference to the database. The object relationship here is a little strange, but very cool. When you obtain a database, like this:
@@ -125,12 +126,12 @@ caterwaul.tconfiguration('std opt error', 'db.file', function () {
 //   | 1. There is no guarantee that the API won't change later
 //     2. It makes the interface really counterintuitive and people won't understand what you're doing
 
-    {update: fn[field, value, cc][this.constructor.append(this.id, {time: +new Date(), field: field, value: value}, cc)],
+    {update: fn[field, value, cc][this.constructor.object_append(this.id, {time: +new Date(), field: field, value: value}, cc)],
         get: fn[cc][this.log(fb[changes][cc(this.constructor.assemble(changes))])],
-        log: fn[cc][this.constructor.changes_for(this.id, cc)],
+        log: fn[cc][this.constructor.read_object(this.id, cc)],
 
-      index: fn_[let[as = arguments] in opt.unroll[i, as.length][as[i] instanceof Array ? opt.unroll[j, as[i].length][this.index(as[i][j])] :
-                                                                                          this.constructor.index_append(this.id, as[i])]]}),
+      index: fn_[let[as = arguments] in opt.unroll[i, as.length][as[i].constructor === Array ? opt.unroll[j, as[i].length][this.index(as[i][j])] :
+                                                                                               this.constructor.index_append(this.id, as[i])]]}),
 
 //   Static (database-level) methods.
 //   Databases have all of the logic to process changelog files and indexes. The record interface is really just a shell around these methods, though you should probably use it because it's so
@@ -139,7 +140,7 @@ caterwaul.tconfiguration('std opt error', 'db.file', function () {
 //     Public interface.
 //     These methods are meant for external use. The rest of them below are more for internal use, though you might need them for some reason.
 
-      {index: fn[index, cc][this.data_for(this.index_filename_for(index), cc), this],
+      {index: fn[index, cc][this.data_for(this.index_filename_for(index), fn[data][cc(data.split(/\n/).filter(fn[x][x]))]), this],
 
 //     Directory partitioning.
 //     I'm assuming we'll have a lot of objects in this database, and most filesystems can't take more than about 30,000 entries in a directory before slowing down or dying altogether. The
@@ -150,16 +151,16 @@ caterwaul.tconfiguration('std opt error', 'db.file', function () {
        object_filename_for: fn[id]['#{this.object_directory_for(id)}/#{id}'],
         index_filename_for: fn[id]['#{dir}/indexes/#{id}'],
 
-                 unique_id: fn_[let[parts = /_gensym_([^_]+)_([^_]+)_/.exec(this[caterwaul].gensym())] in 'object_#{parts[0]}_#{parts[1]}'],
+                 unique_id: fn_[let[parts = /_gensym_([^_]+)_([^_]+)_/.exec(this[caterwaul].gensym())] in 'object_#{parts[1]}_#{parts[2]}'],
 
 //     Object creation and retrieval.
 //     This is actually really simple. Object shells behave the same regardless of whether the object exists, so all we have to do is set them up with an ID. The only case where this isn't true
 //     is if we are given an object or an array; in this case we actually create the object on disk and return an interface to it.
 
-               get: fn[id][new this(this.unique_id())],
+               get: fn[id][new this(id)],
             create: fn[id][id === undefined ? new this(this.unique_id()) :
-                           id instanceof Object ? this.create(this.disassemble(id)) :
-                           id instanceof Array  ? let[result = new this(this.unique_id())] in (opt.unroll[i, id.length][this.append(result.id, id[i])], result) :
+                           id.constructor === Object ? this.create(this.disassemble(id)) :
+                           id.constructor === Array  ? let[result = new this(this.unique_id())] in (opt.unroll[i, id.length][this.append(result.id, id[i])], result) :
                            error.fail[new Error('Invalid parameter to caterwaul.db.file.create: #{id}')]],
 
 //     Object access and parsing.
@@ -167,7 +168,7 @@ caterwaul.tconfiguration('std opt error', 'db.file', function () {
 //     instead. Parsing is a simple process; it just entails converting each line in the file into an object of the form {time: n, field: 'f', value: x}, where the 'value' field has been run
 //     through a JSON parse. Any row that doesn't parse correctly is left as a string.
 
-          data_for: fn[filename, cc][fs.readFile(filename, fn[err, data][cc(data || '')])],
+          data_for: fn[filename, cc][fs.readFile(filename, 'utf8', fn[err, data][cc(data || '')])],
         parse_data: fn[data][let[lines = data.split(/\n/), match = null] in
                              (opt.unroll[i, lines.length][(match = /^(\d+):(\w+)=(.*)$/.exec(lines[i])) && (lines[i] = {time: Number(match[1]), field: match[2], value: JSON.parse(match[3])})],
                               lines)],
@@ -175,7 +176,7 @@ caterwaul.tconfiguration('std opt error', 'db.file', function () {
        read_object: fn[id, cc][this.data_for(this.object_filename_for(id), fb[data][cc(this.parse_data(data))])],
 
 //     Global logging.
-//     We write to whichever log represents today. This is a simple function of the current date (I don't care whether it's UTC or local).
+//     We write to whichever log represents today. This is a simple function of the current date (doesn't really matter whether it's UTC or local, as long as it's consistent).
 
       current_date: fn_[let[now = new Date(), format = fn[n][n < 10 ? '0#{n}' : n]] in '#{now.getFullYear()}-#{format(now.getMonth())}-#{format(now.getDate())}'],
         object_log: fn_['#{dir}/log/objects-#{this.current_date()}'],
@@ -186,19 +187,21 @@ caterwaul.tconfiguration('std opt error', 'db.file', function () {
 //     construct proper change objects and let the database serialize them for you.
 
        file_append: fn[filename, line, cc][let[dirname = path.dirname(filename),
-                                               continuation = fb_[let[ws = fs.createWriteStream(filename, {mode: 'a+'})] in (ws.write('#{line}\n', 'utf8'), ws.end(cc || undefined))]] in
+                                               continuation = fb_[let[ws = fs.createWriteStream(filename, {flags: 'a+'})] in (ws.write('#{line}\n', 'utf8'), ws.end(cc || undefined))]] in
                                            path.exists(dirname, fn[exists][exists ? continuation() : fs.mkdir(dirname, options.mode, continuation)])],
 
          serialize: fn[change]['#{change.time}:#{change.field}=#{JSON.stringify(change.value)}'],
-     object_append: fn[id, change, cc][let[change = this.serialize(change)] in (this.file_append(this.object_log(), '#{id}:#{change}'), this.file_append(this.file_for(id), change, cc))],
+
+     object_append: fn[id, change, cc][let[change = this.serialize(change)] in (this.file_append(this.object_log(), '#{id}:#{change}'),
+                                                                                this.file_append(this.object_filename_for(id), change, cc))],
       index_append: fn[object_id, index, cc][this.file_append(this.index_log(), '#{object_id}@#{+new Date()}:#{index}'), this.file_append(this.index_filename_for(index), object_id, cc)],
 
 //     Assembly and disassembly.
 //     Given a changelog, we want to construct an object, and given an object we want to construct a minimal changelog.
 
-          assemble: fn[changes][let[object = {}] in (opt.unroll[i, changes.length][changes[i] instanceof Object && (object[changes[i].field] = changes[i].value)], object)],
+          assemble: fn[changes][let[object = {}] in (opt.unroll[i, changes.length][changes[i].constructor === Object && (object[changes[i].field] = changes[i].value)], object)],
        disassemble: function (object) {var changes = []; for (var k in object) if (object.hasOwnProperty(k)) changes.push({time: +new Date(), field: k, value: object[k]}); return changes}});
 
-  return result}});
+    return result}});
 
 // Generated by SDoc 
