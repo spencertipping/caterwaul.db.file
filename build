@@ -10,7 +10,7 @@ fi
 
 if [[ $1 == 'run' ]]; then
   mkfifo combined.js
-  cat lib/caterwaul.min.js lib/caterwaul.opt.min.js lib/caterwaul.error.min.js caterwaul.db.file.js > combined.js &
+  cat lib/caterwaul.min.js lib/caterwaul.opt.min.js lib/caterwaul.error.min.js caterwaul.db.file.js repl-test.js > combined.js &
   node combined.js
   rm combined.js
 fi
