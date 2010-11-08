@@ -1,0 +1,28 @@
+Caterwaul File DB: A really simple flat-file database.
+MIT license
+
+Requirements.
+The only two requirements are node.js and Caterwaul. Caterwaul comes with this
+repository, so all you really need to install is node.js if you don't already
+have it (available at github.com/ry/node).
+
+Usage.
+First, ** this is not production code! ** -- it can (probably will) lose data,
+so you shouldn't use it for important stuff. That said, at some point it will
+be production quality, and I'd appreciate bug reports/feedback.
+
+The simplest way to use it is to open a REPL, like this:
+$ ./build repl
+caterwaul.db.file> var r = db('foo')
+caterwaul.db.file> r
+{ id: 'foo' }
+caterwaul.db.file> r.get(console.log)
+{}
+caterwaul.db.file> r.update('bar', 'bif')
+{ id: 'foo' }
+caterwaul.db.file> r.get(console.log)
+{ bar: 'bif' }
+caterwaul.db.file>
+
+Full API documentation is available in the source code, viewable as HTML in
+sdoc.html.

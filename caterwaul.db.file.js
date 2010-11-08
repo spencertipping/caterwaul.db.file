@@ -126,11 +126,11 @@ caterwaul.tconfiguration('std iter error', 'db.file', function () {
 //   | 1. There is no guarantee that the API won't change later
 //     2. It makes the interface really counterintuitive and people won't understand what you're doing
 
-    {update: fn[field, value, cc][this.constructor.object_append(this.id, {time: +new Date(), field: field, value: value}, cc)],
+    {update: fn[field, value, cc][this.constructor.object_append(this.id, {time: +new Date(), field: field, value: value}, cc), this],
         get: fn[cc][this.log(fb[changes][cc(this.constructor.assemble(changes))])],
-        log: fn[cc][this.constructor.read_object(this.id, cc)],
+        log: fn[cc][this.constructor.read_object(this.id, cc), this],
 
-      index: fn_[let[as = arguments] in iter.n[i, as.length][as[i].constructor === Array ? iter.n[j, as[i].length][this.index(as[i][j])] : this.constructor.index_append(this.id, as[i])]]}),
+      index: fn_[let[as = arguments][iter.n[i, as.length][as[i].constructor === Array ? iter.n[j, as[i].length][this.index(as[i][j])] : this.constructor.index_append(this.id, as[i])], this]]}),
 
 //   Static (database-level) methods.
 //   Databases have all of the logic to process changelog files and indexes. The record interface is really just a shell around these methods, though you should probably use it because it's so
