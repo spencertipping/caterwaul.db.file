@@ -6,7 +6,6 @@ run() {
   cat "$@" > combined.js &
   node combined.js
   rm combined.js
-
 }
 
 if [[ $1 == 'update' ]]; then
