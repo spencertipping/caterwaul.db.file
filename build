@@ -22,6 +22,7 @@ fi
 
 if [[ $1 == 'test' ]]; then
   rm -f .test-log
+  rm -rf test-db
   for file in test/*.js; do
     echo Starting test $file...
     run lib/caterwaul.min.js lib/caterwaul.iter.min.js lib/caterwaul.error.min.js caterwaul.db.file.js $file
