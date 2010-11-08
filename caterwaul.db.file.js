@@ -6,11 +6,11 @@
 // setup, and (4) reasonably quick (in case you do need to use it for real applications). It doesn't provide any sort of transactions, record locking, etc -- it's just a key-value store that is
 // easily inspected and backed up with rsync.
 
-// All records are stored as plain-text with minimal formatting changes. This means that you can write an adapter to the database in just a few lines of code in a language with good regexp
-// support. It also enables very easy recovery in case something goes wrong.
+// All records are stored as plain-text with JSON values. This means that you can write an adapter to the database in just a few lines of code in a language with good regexp support. It also
+// enables very easy recovery in case something goes wrong.
 
 caterwaul.node_require || caterwaul.field('node_require', require);
-caterwaul.tconfiguration('std opt error', 'db.file', function () {
+caterwaul.tconfiguration('std iter error', 'db.file', function () {
 
 // Creating a database.
 // You can create a database in a directory by saying this (the directory doesn't have to exist ahead of time):
@@ -130,8 +130,7 @@ caterwaul.tconfiguration('std opt error', 'db.file', function () {
         get: fn[cc][this.log(fb[changes][cc(this.constructor.assemble(changes))])],
         log: fn[cc][this.constructor.read_object(this.id, cc)],
 
-      index: fn_[let[as = arguments] in opt.unroll[i, as.length][as[i].constructor === Array ? opt.unroll[j, as[i].length][this.index(as[i][j])] :
-                                                                                               this.constructor.index_append(this.id, as[i])]]}),
+      index: fn_[let[as = arguments] in iter.n[i, as.length][as[i].constructor === Array ? iter.n[j, as[i].length][this.index(as[i][j])] : this.constructor.index_append(this.id, as[i])]]}),
 
 //   Static (database-level) methods.
 //   Databases have all of the logic to process changelog files and indexes. The record interface is really just a shell around these methods, though you should probably use it because it's so
@@ -160,7 +159,7 @@ caterwaul.tconfiguration('std opt error', 'db.file', function () {
                get: fn[id][new this(id)],
             create: fn[id][id === undefined ? new this(this.unique_id()) :
                            id.constructor === Object ? this.create(this.disassemble(id)) :
-                           id.constructor === Array  ? let[result = new this(this.unique_id())] in (opt.unroll[i, id.length][this.append(result.id, id[i])], result) :
+                           id.constructor === Array  ? let[result = new this(this.unique_id())] in (iter.n[i, id.length][this.append(result.id, id[i])], result) :
                            error.fail[new Error('Invalid parameter to caterwaul.db.file.create: #{id}')]],
 
 //     Object access and parsing.
@@ -170,7 +169,7 @@ caterwaul.tconfiguration('std opt error', 'db.file', function () {
 
           data_for: fn[filename, cc][fs.readFile(filename, 'utf8', fn[err, data][cc(data || '')])],
         parse_data: fn[data][let[lines = data.split(/\n/), match = null] in
-                             (opt.unroll[i, lines.length][(match = /^(\d+):(\w+)=(.*)$/.exec(lines[i])) && (lines[i] = {time: Number(match[1]), field: match[2], value: JSON.parse(match[3])})],
+                             (iter.n[i, lines.length][(match = /^(\d+):(\w+)=(.*)$/.exec(lines[i])) && (lines[i] = {time: Number(match[1]), field: match[2], value: JSON.parse(match[3])})],
                               lines)],
 
        read_object: fn[id, cc][this.data_for(this.object_filename_for(id), fb[data][cc(this.parse_data(data))])],
@@ -182,24 +181,38 @@ caterwaul.tconfiguration('std opt error', 'db.file', function () {
         object_log: fn_['#{dir}/log/objects-#{this.current_date()}'],
          index_log: fn_['#{dir}/log/index-#{this.current_date()}'],
 
+//     File appends.
+//     It's possible to run out of filehandles and possibly reorder data if we're not careful. To avoid this we keep a couple of hashes around. One of them maps filenames to existing
+//     write-streams, and the other maps filenames to arrays of data to be written. There's also an optimistic error handler that catches the too-many-filehandles error and retries after a few
+//     milliseconds.
+
+       file_append: let*[filehandles = {}, write_stream_for(filename) = filehandles[filename] || fs.createWriteStream(filename, {flags: 'a+'}),
+                         requests    = {}, requests_for(filename)     = requests[filename]    || [],
+
+                         ensure_directory_for(filename, cc) = path.exists(path.dirname(filename), fn[exists][exists ? cc() : fs.mkdir(path.dirname(filename), options.mode, cc)]),
+                         create_request_for(filename, data) = ensure_directory_for(filename,
+                                                                fn_[(requests[filename] = requests_for(filename)).push(data), process.nextTick(handle_next_request_for(filename))]),
+                         handle_next_request_for(filename)  = fn_[error.safely[requests_for(filename).length ? h.write(requests[filename].shift(), 'utf8', handle_next_request_for(filename)) :
+                                                                                                               (h.end(), requests[filename] = filehandles[filename] = undefined),
+                                                                               where[h = write_stream_for(filename)]]
+                                                                              [setTimeout(handle_next_request_for(filename), 10)]]] in
+
+                    fn[filename, line][create_request_for(filename, '#{line}\n')],
+
 //     Object updates.
 //     This is provided just at the high-level. There isn't a way to append arbitrary data to a file, since it would be very easy to corrupt the database using that API. Instead you have to
 //     construct proper change objects and let the database serialize them for you.
 
-       file_append: fn[filename, line, cc][let[dirname = path.dirname(filename),
-                                               continuation = fb_[let[ws = fs.createWriteStream(filename, {flags: 'a+'})] in (ws.write('#{line}\n', 'utf8'), ws.end(cc || undefined))]] in
-                                           path.exists(dirname, fn[exists][exists ? continuation() : fs.mkdir(dirname, options.mode, continuation)])],
-
          serialize: fn[change]['#{change.time}:#{change.field}=#{JSON.stringify(change.value)}'],
 
+      index_append: fn[object_id, index, cc][this.file_append(this.index_log(), '#{object_id}@#{+new Date()}:#{index}'), this.file_append(this.index_filename_for(index), object_id, cc)],
      object_append: fn[id, change, cc][let[change = this.serialize(change)] in (this.file_append(this.object_log(), '#{id}:#{change}'),
                                                                                 this.file_append(this.object_filename_for(id), change, cc))],
-      index_append: fn[object_id, index, cc][this.file_append(this.index_log(), '#{object_id}@#{+new Date()}:#{index}'), this.file_append(this.index_filename_for(index), object_id, cc)],
 
 //     Assembly and disassembly.
 //     Given a changelog, we want to construct an object, and given an object we want to construct a minimal changelog.
 
-          assemble: fn[changes][let[object = {}] in (opt.unroll[i, changes.length][changes[i].constructor === Object && (object[changes[i].field] = changes[i].value)], object)],
+          assemble: fn[changes][let[object = {}] in (iter.n[i, changes.length][changes[i].constructor === Object && (object[changes[i].field] = changes[i].value)], object)],
        disassemble: function (object) {var changes = []; for (var k in object) if (object.hasOwnProperty(k)) changes.push({time: +new Date(), field: k, value: object[k]}); return changes}});
 
     return result}});

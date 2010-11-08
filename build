@@ -1,16 +1,36 @@
 #!/bin/bash
-sdoc -p
+sdoc -p . lib test
+
+run() {
+  mkfifo combined.js
+  cat "$@" > combined.js &
+  node combined.js
+  rm combined.js
+
+}
 
 if [[ $1 == 'update' ]]; then
   rm -f lib/*.js
   wget http://spencertipping.com/caterwaul/caterwaul.min.js -O lib/caterwaul.min.js
-  wget http://spencertipping.com/caterwaul/modules/caterwaul.opt.min.js -O lib/caterwaul.opt.min.js
+  wget http://spencertipping.com/caterwaul/modules/caterwaul.iter.min.js -O lib/caterwaul.iter.min.js
   wget http://spencertipping.com/caterwaul/modules/caterwaul.error.min.js -O lib/caterwaul.error.min.js
 fi
 
 if [[ $1 == 'run' ]]; then
-  mkfifo combined.js
-  cat lib/caterwaul.min.js lib/caterwaul.opt.min.js lib/caterwaul.error.min.js caterwaul.db.file.js repl-test.js > combined.js &
-  node combined.js
-  rm combined.js
+  run lib/caterwaul.min.js lib/caterwaul.iter.min.js lib/caterwaul.error.min.js caterwaul.db.file.js repl-test.js
+fi
+
+if [[ $1 == 'test' ]]; then
+  rm -f .test-log
+  for file in test/*.js; do
+    echo Starting test $file...
+    run lib/caterwaul.min.js lib/caterwaul.iter.min.js lib/caterwaul.error.min.js caterwaul.db.file.js $file
+    if [[ $? == 0 ]]; then
+      echo pass $file | tee -a .test-log
+    else
+      echo fail $file | tee -a .test-log
+    fi
+  done
+  grep ^fail .test-log
+  exit $((! $?))
 fi
