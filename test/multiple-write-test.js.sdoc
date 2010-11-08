@@ -1,11 +1,14 @@
 Test for multiple simultaneous writes to the same record
 
-caterwaul.clone('std', 'error', 'db.file')(function () {
+caterwaul.clone('std', 'error', 'iter', 'db.file')(function () {
   var db          = this[caterwaul].db.file('test-db'),
       long_string = 'c';
 
-  for (var i = 0; i < 16; ++i) long_string += long_string;
-  for (var i = 0; i < 100; ++i) db('record').update('foo', long_string + i);
+  iter.n[i, 16][long_string += long_string];
+  iter.n[i, 100][db('record').update('foo', long_string + i),
+                 db('record#{i}').update('bar', i + long_string)];
 
-  db.get('record', fn[r][error.fail['#{r.foo} was not #{long_string + (i - 1)}'], unless[r.foo === long_string + (i - 1)]]);
+  setTimeout(fn_[
+    db('record').get(fn[r][error.fail['#{r.foo} was not #{long_string + 99}'], unless[r.foo === long_string + 99]]),
+    iter.n[i, 100][db('record#{i}').get(let[k = i] in fn[r][error.fail['#{r.bar} was not #{k}#{long_string}'], unless[r.bar === k + long_string]])]], 2000);
 })();
