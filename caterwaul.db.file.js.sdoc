@@ -90,15 +90,15 @@ External interface.
 First we need to make sure that the objects, indexes, and log directories exist. Those can be created synchronously, since one doesn't generally initialize databases midway through an
 application's lifecycle (and nobody wants to write DB-initialization code in CPS either). I may add an asynchronous interface later on.
 
-  file.shell = function (dir, options) {
-    options      || (options      = {});
-    options.mode || (options.mode = 0744);
+  file.shell = fn[dir, options][
+    options      || (options      = {}),
+    options.mode || (options.mode = 0744),
 
-    mkdir_p_sync('#{dir}/objects', options.mode);
-    mkdir_p_sync('#{dir}/log',     options.mode);
-    mkdir_p_sync('#{dir}/indexes', options.mode);
+    mkdir_p_sync('#{dir}/objects', options.mode),
+    mkdir_p_sync('#{dir}/log',     options.mode),
+    mkdir_p_sync('#{dir}/indexes', options.mode),
 
-    var result = caterwaul.util.merge(
+    let*[result = caterwaul.util.merge(
       caterwaul.util.extend(fn[x][this.constructor === result ? (this.id = x) :
                                   x === undefined          ? result.create()  : x.constructor === String ? result.get(x) :
                                   x.constructor === Object ? result.create(x) : x.constructor === Array  ? result.create(x) :
@@ -139,7 +139,7 @@ application's lifecycle (and nobody wants to write DB-initialization code in CPS
     Public interface.
     These methods are meant for external use. The rest of them below are more for internal use, though you might need them for some reason.
 
-      {index: fn[index, cc][this.data_for(this.index_filename_for(index), fn[data][cc(data.split(/\n/).filter(fn[x][x]))]), this],
+      {index: fn[index, cc][this.data_for(this.index_filename_for(index), fn[data][cc(data.split(/\n/).filter(fn[x][x.length]))]), this],
 
     Directory partitioning.
     I'm assuming we'll have a lot of objects in this database, and most filesystems can't take more than about 30,000 entries in a directory before slowing down or dying altogether. The
@@ -158,7 +158,7 @@ application's lifecycle (and nobody wants to write DB-initialization code in CPS
 
                get: fn[id][new this(id)],
             create: fn[id][id === undefined ? new this(this.unique_id()) : id.constructor === Object ? this.create(this.disassemble(id)) :
-                           id.constructor === Array ? let[result = new this(this.unique_id())] in (iter.n[i, id.length][this.append(result.id, id[i])], result) :
+                           id.constructor === Array ? let[result = new this(this.unique_id())][iter.n[i, id.length][this.append(result.id, id[i])], result] :
                            error.fail[new Error('Invalid parameter to caterwaul.db.file.create: #{id}')]],
 
     Object access and parsing.
@@ -207,13 +207,11 @@ application's lifecycle (and nobody wants to write DB-initialization code in CPS
          serialize: fn[change]['#{change.time}:#{change.field}=#{JSON.stringify(change.value)}'],
 
       index_append: fn[object_id, index, cc][this.file_append(this.index_log(), '#{object_id}@#{+new Date()}:#{index}'), this.file_append(this.index_filename_for(index), object_id, cc)],
-     object_append: fn[id, change, cc][let[change = this.serialize(change)] in (this.file_append(this.object_log(), '#{id}:#{change}'),
-                                                                                this.file_append(this.object_filename_for(id), change, cc))],
+     object_append: fn[id, change, cc][let[change = this.serialize(change)][this.file_append(this.object_log(), '#{id}:#{change}'), this.file_append(this.object_filename_for(id), change, cc)]],
 
     Assembly and disassembly.
     Given a changelog, we want to construct an object, and given an object we want to construct a minimal changelog.
 
-          assemble: fn[changes][let[object = {}] in (iter.n[i, changes.length][changes[i].constructor === Object && (object[changes[i].field] = changes[i].value)], object)],
-       disassemble: function (object) {var changes = []; for (var k in object) if (object.hasOwnProperty(k)) changes.push({time: +new Date(), field: k, value: object[k]}); return changes}});
-
-    return result}});
+          assemble: fn[changes][let[object = {}][iter.n[i, changes.length][changes[i].constructor === Object && (object[changes[i].field] = changes[i].value)], object]],
+       disassemble: fn[object][let[changes = []][iter.keys[k, object][changes.push({time: +new Date(), field: k, value: object[k]}), when[object.hasOwnProperty(k)]], changes]]})] in result];
+});

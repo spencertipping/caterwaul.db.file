@@ -707,9 +707,10 @@ $hash = fast_hash("$data{$_}|$hash") for @keys;
 $hash;
 __e17520e3a5d81d788ae995fd8ac47cb9
 
-meta::function('test', <<'__ecc6451247a0e4a2d632555a0a414ec6');
+meta::function('test', <<'__24e59e7924d6236a002dd637210e5a90');
 # Runs your program on each unit test and keeps track of the return codes.
 generate();
+-x 'bin/before-test' && system('bin/before-test');
 
 my @log;
 my $failures = 0;
@@ -725,7 +726,7 @@ for (<test/*.js>) {
 file::write('.test-log', join "\n", @log);
 terminal::message('error', "$failures test(s) failed") if $failures;
 $failures;
-__ecc6451247a0e4a2d632555a0a414ec6
+__24e59e7924d6236a002dd637210e5a90
 
 meta::function('unlock', 'chmod_self(sub {$_[0] | 0200});');
 meta::function('update', '&{\'update-from\'}(@_, grep s/^parent:://o, sort keys %data);');
