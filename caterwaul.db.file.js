@@ -157,9 +157,8 @@ caterwaul.tconfiguration('std iter error', 'db.file', function () {
 //     is if we are given an object or an array; in this case we actually create the object on disk and return an interface to it.
 
                get: fn[id][new this(id)],
-            create: fn[id][id === undefined ? new this(this.unique_id()) :
-                           id.constructor === Object ? this.create(this.disassemble(id)) :
-                           id.constructor === Array  ? let[result = new this(this.unique_id())] in (iter.n[i, id.length][this.append(result.id, id[i])], result) :
+            create: fn[id][id === undefined ? new this(this.unique_id()) : id.constructor === Object ? this.create(this.disassemble(id)) :
+                           id.constructor === Array ? let[result = new this(this.unique_id())] in (iter.n[i, id.length][this.append(result.id, id[i])], result) :
                            error.fail[new Error('Invalid parameter to caterwaul.db.file.create: #{id}')]],
 
 //     Object access and parsing.
@@ -188,16 +187,18 @@ caterwaul.tconfiguration('std iter error', 'db.file', function () {
 
        file_append: let*[filehandles = {}, write_stream_for(filename) = filehandles[filename] || fs.createWriteStream(filename, {flags: 'a+'}),
                          requests    = {}, requests_for(filename)     = requests[filename]    || [],
+                         callbacks   = {}, callbacks_for(filename)    = callbacks[filename]   || [],
 
-                         ensure_directory_for(filename, cc) = path.exists(path.dirname(filename), fn[exists][exists ? cc() : fs.mkdir(path.dirname(filename), options.mode, cc)]),
-                         create_request_for(filename, data) = ensure_directory_for(filename,
-                                                                fn_[(requests[filename] = requests_for(filename)).push(data), process.nextTick(handle_next_request_for(filename))]),
-                         handle_next_request_for(filename)  = fn_[error.safely[requests_for(filename).length ? h.write(requests[filename].shift(), 'utf8', handle_next_request_for(filename)) :
-                                                                                                               (h.end(), requests[filename] = filehandles[filename] = undefined),
-                                                                               where[h = write_stream_for(filename)]]
-                                                                              [setTimeout(handle_next_request_for(filename), 10)]]] in
+                         ensure_directory_for(filename, cc)     = path.exists(path.dirname(filename), fn[exists][exists ? cc() : fs.mkdir(path.dirname(filename), options.mode, cc)]),
+                         create_request_for(filename, data, cc) = ensure_directory_for(filename,
+                                                                    fn_[(requests[filename]  = requests_for (filename)).push(data),
+                                                                        (callbacks[filename] = callbacks_for(filename)).push(cc), process.nextTick(handle_next_request_for(filename))]),
+                         handle_next_request_for(filename)()    = (error.safely[requests_for(filename).length ?
+                           h.write(requests[filename].shift(), 'utf8', handle_next_request_for(filename)) :
+                           (h.end(), callbacks_for(filename).forEach(fn[f][f && f()]), requests[filename] = filehandles[filename] = callbacks[filename] = undefined),
+                         where[h = write_stream_for(filename)]][setTimeout(handle_next_request_for(filename), 10)])] in
 
-                    fn[filename, line][create_request_for(filename, '#{line}\n')],
+                    fn[filename, line, cc][create_request_for(filename, '#{line}\n', cc)],
 
 //     Object updates.
 //     This is provided just at the high-level. There isn't a way to append arbitrary data to a file, since it would be very easy to corrupt the database using that API. Instead you have to
