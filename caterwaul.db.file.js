@@ -83,7 +83,7 @@ caterwaul.tconfiguration('std iter error', 'db.file', function () {
 // change or set of changes and still have a valid object definition. (This isn't true of a textual diff, for instance, since text diffs don't have well-defined slots.)
 
   var fs = this.node_require('fs'), path = this.node_require('path'), db = this.db || this.shallow('db', {}).db,
-      file = db.file = fn[dir, options][mkdir_p_sync(dir, options && options.mode || 0744), file.shell(dir, options)],
+      file = db.file = fn[dir, options][file.shell(dir, options)],
       mkdir_p_sync = fn[dir, mode][error.quietly[fs.statSync(dir)] || (mkdir_p_sync(path.dirname(dir), mode), fs.mkdirSync(dir, mode))];
 
 // External interface.
@@ -91,8 +91,7 @@ caterwaul.tconfiguration('std iter error', 'db.file', function () {
 // application's lifecycle (and nobody wants to write DB-initialization code in CPS either). I may add an asynchronous interface later on.
 
   file.shell = fn[dir, options][
-    options      || (options      = {}),
-    options.mode || (options.mode = 0744),
+    options = this[caterwaul].util.merge({mode: 0744, file_limit: 100, filehandle_wait: 1}, options || {}),
 
     mkdir_p_sync('#{dir}/objects', options.mode),
     mkdir_p_sync('#{dir}/log',     options.mode),
@@ -141,6 +140,13 @@ caterwaul.tconfiguration('std iter error', 'db.file', function () {
 
       {index: fn[index, cc][this.data_for(this.index_filename_for(index), fn[data][cc(data.split(/\n/).filter(fn[x][x.length]))]), this],
 
+//     File handle limits.
+//     We can't open too many files at once; otherwise there will be an error not here but in the global event loop (!) instead. To prevent this, there's a file_limit option that you can specify
+//     to the DB constructor (by default 100) to prevent more than that many file operations from happening at once.
+
+      allocate_filehandle: let[allocated = 0, limit = options.file_limit, wait_time = options.filehandle_wait] in
+                           fn[when_available][allocated < limit ? (++allocated, when_available(fn_[--allocated])) : setTimeout(fb_[this.allocate_filehandle(when_available)], wait_time)],
+
 //     Directory partitioning.
 //     I'm assuming we'll have a lot of objects in this database, and most filesystems can't take more than about 30,000 entries in a directory before slowing down or dying altogether. The
 //     database uses partitioning on the last two characters of the filename, which are base-36 values. (This means that we end up with 1296 directories with files distributed evenly between
@@ -166,7 +172,7 @@ caterwaul.tconfiguration('std iter error', 'db.file', function () {
 //     instead. Parsing is a simple process; it just entails converting each line in the file into an object of the form {time: n, field: 'f', value: x}, where the 'value' field has been run
 //     through a JSON parse. Any row that doesn't parse correctly is left as a string.
 
-          data_for: fn[filename, cc][fs.readFile(filename, 'utf8', fn[err, data][cc(data || '')])],
+          data_for: fn[filename, cc][this.allocate_filehandle(fn[release][fs.readFile(filename, 'utf8', fn[err, data][release(), cc(data || '')])])],
         parse_data: fn[data][let[lines = data.split(/\n/), match = null] in
                              (iter.n[i, lines.length][(match = /^(\d+):(\w+)=(.*)$/.exec(lines[i])) && (lines[i] = {time: Number(match[1]), field: match[2], value: JSON.parse(match[3])})],
                               lines)],
@@ -185,7 +191,7 @@ caterwaul.tconfiguration('std iter error', 'db.file', function () {
 //     write-streams, and the other maps filenames to arrays of data to be written. There's also an optimistic error handler that catches the too-many-filehandles error and retries after a few
 //     milliseconds.
 
-       file_append: let*[filehandles = {}, write_stream_for(filename) = filehandles[filename] || fs.createWriteStream(filename, {flags: 'a+'}),
+       file_append: let*[filehandles = {}, write_stream_for(filename, cc) = filehandles[filename] ? cc(filehandles[filename]) : fs.createWriteStream(filename, {flags: 'a+'}),
                          requests    = {}, requests_for(filename)     = requests[filename]    || [],
                          callbacks   = {}, callbacks_for(filename)    = callbacks[filename]   || [],
 
@@ -193,10 +199,10 @@ caterwaul.tconfiguration('std iter error', 'db.file', function () {
                          create_request_for(filename, data, cc) = ensure_directory_for(filename,
                                                                     fn_[(requests[filename]  = requests_for (filename)).push(data),
                                                                         (callbacks[filename] = callbacks_for(filename)).push(cc), process.nextTick(handle_next_request_for(filename))]),
-                         handle_next_request_for(filename)()    = (error.safely[requests_for(filename).length ?
+                         handle_next_request_for(filename)()    = (requests_for(filename).length ?
                            h.write(requests[filename].shift(), 'utf8', handle_next_request_for(filename)) :
                            (h.end(), callbacks_for(filename).forEach(fn[f][f && f()]), requests[filename] = filehandles[filename] = callbacks[filename] = undefined),
-                         where[h = write_stream_for(filename)]][setTimeout(handle_next_request_for(filename), 10)])] in
+                         where[h = write_stream_for(filename)])] in
 
                     fn[filename, line, cc][create_request_for(filename, '#{line}\n', cc)],
 
