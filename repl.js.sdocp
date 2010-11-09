@@ -1,0 +1,1 @@
+sdocp('repl.js.sdoc', 'REPL shell\nCreates a database (actually, reuses the one used for unit testing).\n\nrequire(\'repl\').start(\'caterwaul.db.file> \').context.db = caterwaul.clone(\'db.file\').db.file(\'test-db\');\n');

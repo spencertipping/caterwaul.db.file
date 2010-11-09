@@ -1,1 +1,4 @@
+REPL shell
+Creates a database (actually, reuses the one used for unit testing).
+
 require('repl').start('caterwaul.db.file> ').context.db = caterwaul.clone('db.file').db.file('test-db');
