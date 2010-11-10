@@ -141,7 +141,6 @@ filehandles and causing the HTTP server to bomb out.) Requests are serviced in t
 
        index_entries(id, cc) = read(index_file(id), fn[data][cc(data.constructor !== String ? [] : data.split(/\n/))])] in
 
-  fn[id][id = id || unique_id(), fn[x][x === undefined ? id : x.constructor === String   ? index_append(x, id) :
-                                                              x.constructor === Object   ? iter.keys[k, x][object_append(id, k, x[k])] :
-                                                              x.constructor === Function ? object_changes(id, fn[changes][x(object_value(changes), changes)]) :
-                                                              error.fail[new Error('caterwaul.db.file(record #{id}): Invalid parameter for a record: #{x}')]]]});
+  fn[id][id = id || unique_id(), let*[result = fn[x][x === undefined ? id : (x.constructor === String   ? index_append(x, id) :
+                                                                             x.constructor === Function ? object_changes(id, fn[changes][x(object_value(changes), changes)]) :
+                                                                                                          iter.keys[k, x][object_append(id, k, x[k])], result)]][result]]});

@@ -6,5 +6,5 @@ caterwaul.clone('std', 'error', 'iter', 'db.file')(function () {
   iter.n[i, 10000][db('record')({foo: i})];
   
   console.log('many records, one update per');
-  iter.n[i, 10000][db('record#{i}')({bar: i})];
+  iter.n[i, 10000][db()({bar: i})];
 })();
