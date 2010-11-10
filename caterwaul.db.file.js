@@ -10,22 +10,57 @@
 // enables very easy recovery in case something goes wrong.
 
 caterwaul.node_require || caterwaul.field('node_require', require);
-caterwaul.tconfiguration('std iter error', 'db.file', function () {
+caterwaul.tconfiguration('std iter error opt', 'db.file', function () {
 
-// Creating a database.
-// You can create a database in a directory by saying this (the directory doesn't have to exist ahead of time):
+// Interface.
+// The interface is almost completely idiot-proof. Here's how you get a database given a directory (the directory will be created if it doesn't exist and reused if it does):
 
-// | var db = caterwaul.db.file('directory-name');
+// | var db = caterwaul.db.file('some-directory');
 
-// You can then start using the database immediately. Note that this call does block on directory creation.
+// You can also create a database without a directory; by default it uses 'db'.
 
-//   Options.
-//   You can change the mode of the database directories that get created. By default 0744 is used, so the process user is the only one who can browse database objects. To change this, you can
-//   pass in a different mode:
+// Now db is a function that you can use to get record shells:
 
-//   | var db = caterwaul.db.file('directory-name', {mode: 0755});
+// | var record1 = db('record1');                  // record1 if it exists, otherwise creates a new one with that ID
+//   var record2 = db('record2');                  // same for record2
+//   var record3 = db();                           // creates a record with a new ID
 
-// Object model.
+// And each record shell is an accessor function:
+
+// | record1({foo: 'bar', bif: 1})                 // Updates the 'foo' and 'bif' fields asynchronously
+//   record1(function (value) {...})               // Asynchronous retrieval -- calls your callback on the assembled object
+//   record1('foo')                                // Adds record1 to the 'foo' index (all indexing is manual)
+//   record1()                                     // Returns the ID of the record
+
+// | record1(function (value, changes) {...})      // Callbacks also get the changelog
+//   record1({bar: [1, 2, 3]}, function () {...})  // Callback is invoked when the write queue for the record is empty
+
+// Records are created if they don't exist already, and the database doesn't support deletion.
+
+//   Database options.
+//   You can change the mode of the database directories that get created. By default 0755 is used. To change this, you can pass in a different mode:
+
+//   | var db = caterwaul.db.file('directory-name', {mode: 0700});
+
+//   Other options include the maximum number of filehandles you want the database to use at once under load (by default 128):
+
+//   | var db = caterwaul.db.file('directory', {filehandles: 128});
+
+//   Backups and merging.
+//   Backups can be made by using rsync, tar, git, or your favorite archiver. All files are regular text.
+
+//   Databases can be merged, too. The way this works is that the last change to a field wins if the databases have objects with the same IDs (objects with different IDs are fine). Here's how you
+//   would merge databases, for instance (provided that the servers use the same clock!):
+
+//   | #!/bin/bash
+//     for file in $(find database1-dir/ -type f); do
+//       cat database1-dir/$file >> database2-dir/$file          # Or the other way, it doesn't matter
+//     done
+
+//   This operation is idempotent, though if you do it too much you'll have a slow database. Every file is (1) plain text, and (2) append-only with timestamped records -- this means that you can
+//   use version control on your database with reasonable compression and meaningful history. I recommend this if you have staging/production/development environments that you need to manage.
+
+// Object model and file format.
 // Every object is append-only. An object's lifecycle comes in two stages. First, it is created (this is done when someone creates a reference to it) and then it is modified any number of times.
 // Objects are always stored in delta format, one record per line. Each record signifies an edit of some sort, and loading an object is done by replaying the edit log (this is done on the client
 // to reduce server load, though it should be a trivial enough operation even on the server).
@@ -38,32 +73,22 @@ caterwaul.tconfiguration('std iter error', 'db.file', function () {
 //   enatils space usage of O(n) for n edits, and not substantially worse than storing the objects without indexes. Indexes are also append-only. So, for example, here is the content of an object
 //   file:
 
-//   | time:field=value  (update)
+//   | time:field=value
 
 //   The file name is something like /objects/195_/_gensym_foo_bar195_, where _gensym_foo_bar195_ is the object ID. Times are stored as numbers -- whatever new Date().getTime() returns. For
 //   consistency, all times are assigned by the server.
 
-//   You create and update objects by calling the database on an ID:
-
-//   | db()                                // -> a new object -- its ID is available by calling id()
-//     db().id                             // -> the ID of a newly created object
-//     db('id').get(callback)              // calls the callback on the object after replaying the changelog
-//     db('id').log(callback)              // calls the callback on the array of changelog objects
-//     db('id').update('field', value)     // updates the object and returns db('id') -- creates if the object doesn't exist. Takes an optional callback to be invoked when the update is finished
-//     db([change1, change2, ...])         // creates a DB object from a set of changes and returns the DB interface to that object
-//     db({foo: 'bar', bif: 'baz'})        // creates a DB object from a JS object and returns the DB interface to that object
-
 //   Indexes.
 //   Indexes are constructed by tagging particular words. For example, a field edit of 'title' to 'foo bar bif' would probably want to create entries to the object for 'title:foo', 'title:bar',
 //   and 'title:bif'. This would update each of the files /indexes/title:foo, /indexes/title:bar, and /indexes/title:bif. The database provides an interface for indexing things (which is always
-//   done manually):
+//   done manually and is asynchronous):
 
-//   | db('id').index('title:foo', 'title:bar', 'title:bif');
-//     db('id').index(['title:foo', 'title:bar', 'title:bif']);    // same as the first call
+//   | db('id')('title:foo', 'title:bar', 'title:bif');
 
 //   You can later retrieve things based on those indexes:
 
-//   | db.index('title:foo', function (items) {...});                  // everything in the 'foo' index
+//   | db('title:foo', function (ids) {...});              // the ID of everything in the 'foo' index
+//     db.index('title:foo', function (ids) {...});        // same thing
 
 //   The log.
 //   The database keeps a log of every update as it is requested. Each entry is timestamped when it gets added to this log, which makes this log an authoritative data source. Because it is likely
@@ -76,150 +101,49 @@ caterwaul.tconfiguration('std iter error', 'db.file', function () {
 //   | _object_id_@time:index1
 //     _object_id_@time:index2
 
-//   Notice that the index file is not stored in compiled form; it's stored to mirror the arguments of the db('id').index() call.
+//   Notice that the index file is not stored in compiled form; it's stored to mirror the arguments of the db('id')('index') call.
 
-// Properties of objects.
-// Algebraically speaking, objects have some useful properties. Obviously changes are not commutative, but they are associative. They also are independent in the sense that you can remove any
-// change or set of changes and still have a valid object definition. (This isn't true of a textual diff, for instance, since text diffs don't have well-defined slots.)
+//   Properties of objects.
+//   Algebraically speaking, objects have some useful properties. Obviously changes are not commutative, but they are associative. They also are independent in the sense that you can remove any
+//   change or set of changes and still have a valid object definition. (This isn't true of a textual diff, for instance, since text diffs don't have well-defined slots.) Because log-replay
+//   involves sorting by time, you can also merge databases by appends; the exact technique is mentioned in 'Backups and merging'.
 
-  var fs = this.node_require('fs'), path = this.node_require('path'), db = this.db || this.shallow('db', {}).db,
-      file = db.file = fn[dir, options][file.shell(dir, options)],
-      mkdir_p_sync = fn[dir, mode][error.quietly[fs.statSync(dir)] || (mkdir_p_sync(path.dirname(dir), mode), fs.mkdirSync(dir, mode))];
+// Implementation.
+// The database centers around a rate-limiting queue. Whenever a file operation needs to be performed, it has to first reserve a filehandle slot. (This prevents the database from eating up
+// filehandles and causing the HTTP server to bomb out.) Requests are serviced in the order made.
 
-// External interface.
-// First we need to make sure that the objects, indexes, and log directories exist. Those can be created synchronously, since one doesn't generally initialize databases midway through an
-// application's lifecycle (and nobody wants to write DB-initialization code in CPS either). I may add an asynchronous interface later on.
+  (this.db || this.shallow('db', {}).db).file(directory, options) =
+  let*[settings = this[caterwaul].util.merge({mode: 0755, filehandles: 128, memory_index: true}, options || {}),
+       fh_queue = this[caterwaul].clone('queue.blocking').queue.blocking(settings.filehandles),
 
-  file.shell = fn[dir, options][
-    options = this[caterwaul].util.merge({mode: 0744, file_limit: 100, filehandle_wait: 1}, options || {}),
+       path = this[caterwaul].node_require('path'), fs = this[caterwaul].node_require('fs'),
 
-    mkdir_p_sync('#{dir}/objects', options.mode),
-    mkdir_p_sync('#{dir}/log',     options.mode),
-    mkdir_p_sync('#{dir}/indexes', options.mode),
+       read(file, cc)         = fh_queue(fn[free_cc][fs.readFile(file, 'utf8', fn[err, data][cc(data || err), free_cc()])]),
+       append(file, data, cc) = let*[mkdir_p(dir, cc)    = path.exists(dir, fn[b][b ? cc && cc() : mkdir_p(path.dirname(dir), fn_[fs.mkdir(dir, settings.mode, cc)])]),
+                                     write_data(free_cc) = let[w = fs.createWriteStream(file, {flags: 'a+'})] in (w.write(data, 'utf8'), w.end(fn_[free_cc(), cc && cc()]))]
+                                [mkdir_p(path.dirname(file), fn_[fh_queue(write_data)])],
 
-    let*[result = caterwaul.util.merge(
-      caterwaul.util.extend(fn[x][this.constructor === result ? (this.id = x) :
-                                  x === undefined          ? result.create()  : x.constructor === String ? result.get(x) :
-                                  x.constructor === Object ? result.create(x) : x.constructor === Array  ? result.create(x) :
-                                  error.fail[new Error('Invalid parameter to caterwaul.db.file: #{x}')]],
+       with_partition(id)  = '#{id.substring(id.length - 2)}/#{id}',
+       todays_log_suffix() = let[zero(n) = n < 10 ? '0#{n}' : n, now = new Date()] in '#{zero(now.getFullYear())}-#{zero(now.getMonth() + 1)}-#{zero(now.getDate())}',
 
-//   Instance methods of objects.
-//   We can easily construct objects given the ID and a reference to the database. The object relationship here is a little strange, but very cool. When you obtain a database, like this:
+       object_file(id) = '#{directory}/objects/#{with_partition(id)}',
+       index_file(id)  = '#{directory}/indexes/#{id}',
 
-//   | var db = caterwaul.db.file('foo');
+       object_append(id, field, value, cc) = (append(object_file(id),                                   '#{+new Date()}:#{field}=#{JSON.stringify(value)}\n', cc),
+                                              append('#{directory}/log/objects-#{todays_log_suffix()}', '#{id}@#{+new Date()}:#{field}=#{JSON.stringify(value)}\n')),
+       index_append(id, object_id, cc)     = (append(index_file(id),                                    '#{object_id}\n', cc),
+                                              append('#{directory}/log/index-#{todays_log_suffix()}',   '#{id}@#{+new Date()}:#{id}')),
 
-//   You actually get a constructor function. However, you don't normally call it this way (though you could). It is a class specific to the database. When you ask for a record:
+       object_changes(id, cc) = read(object_file(id), fn[data][cc(data.constructor !== String ? [] : data.split(/\n/).map(
+                                  fn[s][let[parts = /^([^:]+):([^=]+)=(.*)$/.exec(s)][parts ? {time: Number(parts[1]), field: parts[2], value: JSON.parse(parts[3])} : {bogus: s}]]))]),
+       object_value(changes) = let[o = {}, c = null][opt.unroll[i, changes.length][(c = changes[i]) && (o[c.field] = c.value)], o],
 
-//   | var record = db('some_record_id');
-//     record instanceof db                        // -> true
-//     record.constructor === db                   // -> true
-//     record instanceof caterwaul.db.file('bar')  // -> false
-//     record instanceof caterwaul.db.file('foo')  // -> not necessarily true (though I'm not making any promises)
+       index_entries(id, cc) = read(index_file(id), fn[data][cc(data.constructor !== String ? [] : data.split(/\n/))])] in
 
-//   The database constructor function has closure state, so you could also create record shells this way:
-
-//   | var record = new db('some_record_id');
-
-//   However, you shouldn't for a couple of reasons:
-
-//   | 1. There is no guarantee that the API won't change later
-//     2. It makes the interface really counterintuitive and people won't understand what you're doing
-
-    {update: fn[field, value, cc][this.constructor.object_append(this.id, {time: +new Date(), field: field, value: value}, cc), this],
-        get: fn[cc][this.log(fb[changes][cc(this.constructor.assemble(changes))])],
-        log: fn[cc][this.constructor.read_object(this.id, cc), this],
-
-      index: fn_[let[as = arguments][iter.n[i, as.length][as[i].constructor === Array ? iter.n[j, as[i].length][this.index(as[i][j])] : this.constructor.index_append(this.id, as[i])], this]]}),
-
-//   Static (database-level) methods.
-//   Databases have all of the logic to process changelog files and indexes. The record interface is really just a shell around these methods, though you should probably use it because it's so
-//   intuitive and awesome :).
-
-//     Public interface.
-//     These methods are meant for external use. The rest of them below are more for internal use, though you might need them for some reason.
-
-      {index: fn[index, cc][this.data_for(this.index_filename_for(index), fn[data][cc(data.split(/\n/).filter(fn[x][x.length]))]), this],
-
-//     File handle limits.
-//     We can't open too many files at once; otherwise there will be an error not here but in the global event loop (!) instead. To prevent this, there's a file_limit option that you can specify
-//     to the DB constructor (by default 100) to prevent more than that many file operations from happening at once.
-
-      allocate_filehandle: let[allocated = 0, limit = options.file_limit, wait_time = options.filehandle_wait] in
-                           fn[when_available][allocated < limit ? (++allocated, when_available(fn_[--allocated])) : setTimeout(fb_[this.allocate_filehandle(when_available)], wait_time)],
-
-//     Directory partitioning.
-//     I'm assuming we'll have a lot of objects in this database, and most filesystems can't take more than about 30,000 entries in a directory before slowing down or dying altogether. The
-//     database uses partitioning on the last two characters of the filename, which are base-36 values. (This means that we end up with 1296 directories with files distributed evenly between
-//     them.)
-
-      object_directory_for: fn[id]['#{dir}/objects/#{id.substring(id.length - 2)}'],
-       object_filename_for: fn[id]['#{this.object_directory_for(id)}/#{id}'],
-        index_filename_for: fn[id]['#{dir}/indexes/#{id}'],
-
-                 unique_id: fn_[let[parts = /_gensym_([^_]+)_([^_]+)_/.exec(this[caterwaul].gensym())] in 'object_#{parts[1]}_#{parts[2]}'],
-
-//     Object creation and retrieval.
-//     This is actually really simple. Object shells behave the same regardless of whether the object exists, so all we have to do is set them up with an ID. The only case where this isn't true
-//     is if we are given an object or an array; in this case we actually create the object on disk and return an interface to it.
-
-               get: fn[id][new this(id)],
-            create: fn[id][id === undefined ? new this(this.unique_id()) : id.constructor === Object ? this.create(this.disassemble(id)) :
-                           id.constructor === Array ? let[result = new this(this.unique_id())][iter.n[i, id.length][this.append(result.id, id[i])], result] :
-                           error.fail[new Error('Invalid parameter to caterwaul.db.file.create: #{id}')]],
-
-//     Object access and parsing.
-//     This is provided at two levels. You can request the raw file contents (an empty string if the file doesn't exist), but most of the time you'll probably want to have the parsed contents
-//     instead. Parsing is a simple process; it just entails converting each line in the file into an object of the form {time: n, field: 'f', value: x}, where the 'value' field has been run
-//     through a JSON parse. Any row that doesn't parse correctly is left as a string.
-
-          data_for: fn[filename, cc][this.allocate_filehandle(fn[release][fs.readFile(filename, 'utf8', fn[err, data][release(), cc(data || '')])])],
-        parse_data: fn[data][let[lines = data.split(/\n/), match = null] in
-                             (iter.n[i, lines.length][(match = /^(\d+):(\w+)=(.*)$/.exec(lines[i])) && (lines[i] = {time: Number(match[1]), field: match[2], value: JSON.parse(match[3])})],
-                              lines)],
-
-       read_object: fn[id, cc][this.data_for(this.object_filename_for(id), fb[data][cc(this.parse_data(data))])],
-
-//     Global logging.
-//     We write to whichever log represents today. This is a simple function of the current date (doesn't really matter whether it's UTC or local, as long as it's consistent).
-
-      current_date: fn_[let[now = new Date(), format = fn[n][n < 10 ? '0#{n}' : n]] in '#{now.getFullYear()}-#{format(now.getMonth())}-#{format(now.getDate())}'],
-        object_log: fn_['#{dir}/log/objects-#{this.current_date()}'],
-         index_log: fn_['#{dir}/log/index-#{this.current_date()}'],
-
-//     File appends.
-//     It's possible to run out of filehandles and possibly reorder data if we're not careful. To avoid this we keep a couple of hashes around. One of them maps filenames to existing
-//     write-streams, and the other maps filenames to arrays of data to be written. There's also an optimistic error handler that catches the too-many-filehandles error and retries after a few
-//     milliseconds.
-
-       file_append: let*[filehandles = {}, write_stream_for(filename, cc) = filehandles[filename] ? cc(filehandles[filename]) : fs.createWriteStream(filename, {flags: 'a+'}),
-                         requests    = {}, requests_for(filename)     = requests[filename]    || [],
-                         callbacks   = {}, callbacks_for(filename)    = callbacks[filename]   || [],
-
-                         ensure_directory_for(filename, cc)     = path.exists(path.dirname(filename), fn[exists][exists ? cc() : fs.mkdir(path.dirname(filename), options.mode, cc)]),
-                         create_request_for(filename, data, cc) = ensure_directory_for(filename,
-                                                                    fn_[(requests[filename]  = requests_for (filename)).push(data),
-                                                                        (callbacks[filename] = callbacks_for(filename)).push(cc), process.nextTick(handle_next_request_for(filename))]),
-                         handle_next_request_for(filename)()    = (requests_for(filename).length ?
-                           h.write(requests[filename].shift(), 'utf8', handle_next_request_for(filename)) :
-                           (h.end(), callbacks_for(filename).forEach(fn[f][f && f()]), requests[filename] = filehandles[filename] = callbacks[filename] = undefined),
-                         where[h = write_stream_for(filename)])] in
-
-                    fn[filename, line, cc][create_request_for(filename, '#{line}\n', cc)],
-
-//     Object updates.
-//     This is provided just at the high-level. There isn't a way to append arbitrary data to a file, since it would be very easy to corrupt the database using that API. Instead you have to
-//     construct proper change objects and let the database serialize them for you.
-
-         serialize: fn[change]['#{change.time}:#{change.field}=#{JSON.stringify(change.value)}'],
-
-      index_append: fn[object_id, index, cc][this.file_append(this.index_log(), '#{object_id}@#{+new Date()}:#{index}'), this.file_append(this.index_filename_for(index), object_id, cc)],
-     object_append: fn[id, change, cc][let[change = this.serialize(change)][this.file_append(this.object_log(), '#{id}:#{change}'), this.file_append(this.object_filename_for(id), change, cc)]],
-
-//     Assembly and disassembly.
-//     Given a changelog, we want to construct an object, and given an object we want to construct a minimal changelog.
-
-          assemble: fn[changes][let[object = {}][iter.n[i, changes.length][changes[i].constructor === Object && (object[changes[i].field] = changes[i].value)], object]],
-       disassemble: fn[object][let[changes = []][iter.keys[k, object][changes.push({time: +new Date(), field: k, value: object[k]}), when[object.hasOwnProperty(k)]], changes]]})] in result];
-});
+  fn[id][id = id || this[caterwaul].gensym(), fn[x][x === undefined ? id :
+                                                    x.constructor === String   ? index_append(x, id) :
+                                                    x.constructor === Object   ? iter.keys[k, x][object_append(id, k, x[k])] :
+                                                    x.constructor === Function ? object_changes(id, fn[changes][x(object_value(changes), changes)]) :
+                                                    error.fail[new Error('caterwaul.db.file(record #{id}): Invalid parameter for a record: #{x}')]]]});
 
 // Generated by SDoc 

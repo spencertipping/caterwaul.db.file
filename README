@@ -16,11 +16,11 @@ $ ./build repl
 caterwaul.db.file> var r = db('foo')
 caterwaul.db.file> r
 { id: 'foo' }
-caterwaul.db.file> r.get(console.log)
+caterwaul.db.file> r(console.log)       // Get value
 {}
-caterwaul.db.file> r.update('bar', 'bif')
+caterwaul.db.file> r({bar: 'bif'})      // Update value
 { id: 'foo' }
-caterwaul.db.file> r.get(console.log)
+caterwaul.db.file> r(console.log)
 { bar: 'bif' }
 caterwaul.db.file>
 
