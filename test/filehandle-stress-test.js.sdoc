@@ -1,0 +1,10 @@
+Test for filehandle exhaustion and general performance with small updates
+
+caterwaul.clone('std', 'error', 'iter', 'db.file')(function () {
+  var db = this[caterwaul].db.file('test-db');
+  console.log('single record, many updates');
+  iter.n[i, 10000][db('record')({foo: i})];
+  
+  console.log('many records, one update per');
+  iter.n[i, 10000][db('record#{i}')({bar: i})];
+})();
