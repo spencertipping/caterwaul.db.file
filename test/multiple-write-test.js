@@ -1,7 +1,7 @@
 // Test for multiple simultaneous writes to the same record
 
-caterwaul.clone('std', 'error', 'iter', 'db.file')(function () {
-  var db          = this[caterwaul].db.file('test-db'),
+caterwaul.clone('std error iter db.file')(function () {
+  var db          = caterwaul.db.file('test-db'),
       long_string = 'c';
 
   iter.n[i, 16][long_string += long_string];
