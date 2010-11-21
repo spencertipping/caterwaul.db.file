@@ -83,12 +83,11 @@ changelogs don't get huge, which they easily can if you have large arrays of JSO
   and 'title:bif'. This would update each of the files /indexes/title:foo, /indexes/title:bar, and /indexes/title:bif. The database provides an interface for indexing things (which is always
   done manually and is asynchronous):
 
-  | db('id')('title:foo', 'title:bar', 'title:bif');
+  | db('id')('title:foo')('title:bar')('title:bif');
 
   You can later retrieve things based on those indexes:
 
-  | db('title:foo', function (ids) {...});              // the ID of everything in the 'foo' index
-    db.index('title:foo', function (ids) {...});        // same thing
+  | db.index('title:foo', function (ids) {...});        // the IDs of everything in the 'title:foo' index
 
   The log.
   The database keeps a log of every update as it is requested. Each entry is timestamped when it gets added to this log, which makes this log an authoritative data source. Because it is likely
@@ -139,8 +138,8 @@ filehandles and causing the HTTP server to bomb out.) Requests are serviced in t
                                   fn[s][let[parts = /^([^:]+):([^=]+)=(.*)$/.exec(s)][parts ? {time: Number(parts[1]), field: parts[2], value: JSON.parse(parts[3])} : {bogus: s}]]))]),
        object_value(changes) = let[o = {}, c = null][opt.unroll[i, changes.length][(c = changes[i]) && (o[c.field] = c.value)], o],
 
-       index_entries(id, cc) = read(index_file(id), fn[data][cc(data.constructor !== String ? [] : data.split(/\n/))])] in
-
-  fn[id][id = id || unique_id(), let*[result = fn[x][x === undefined ? id : (x.constructor === String   ? index_append(x, id) :
-                                                                             x.constructor === Function ? object_changes(id, fn[changes][x(object_value(changes), changes)]) :
-                                                                                                          iter.keys[k, x][object_append(id, k, x[k])], result)]][result]]});
+       index_entries(id, cc) = read(index_file(id), fn[data][cc(data.constructor !== String ? [] : data.split(/\n/))]),
+       result(id) = (id = id || unique_id(), let*[result = fn[x][x === undefined ? id : (x.constructor === String   ? index_append(x, id) :
+                                                                                         x.constructor === Function ? object_changes(id, fn[changes][x(object_value(changes), changes)]) :
+                                                                                                                      iter.keys[k, x][object_append(id, k, x[k])], result)]][result])]
+      [result.index = index_entries, result]});
