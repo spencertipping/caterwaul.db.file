@@ -113,7 +113,7 @@ The database centers around a rate-limiting queue. Whenever a file operation nee
 filehandles and causing the HTTP server to bomb out.) Requests are serviced in the order made.
 
   (this.db || this.shallow('db', {}).db).file(directory, options) =
-  let*[settings = caterwaul.util.merge({mode: 0755, filehandles: 128, memory_index: true}, options || {}),
+  let*[settings = caterwaul.util.merge({mode: 0755, filehandles: 128}, options || {}),
        fh_queue = caterwaul.clone('queue.blocking').queue.blocking(settings.filehandles),
 
        unique_id = let[n1 = +new Date(), n2 = Math.random() * (1 << 32), n3 = 0] in fn_['#{n1.toString(36)}_#{n2.toString(36)}_#{(++n3).toString(36)}'],
